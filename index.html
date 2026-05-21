@@ -2265,8 +2265,7 @@
                 while (a2.length < e2.length) a2.push('');
                 saveDataToStorage(e2, r2, a2);
                 rawEntries = e2; remarks = r2; albumUrls = a2;
-    renderAll();
-    loadMusicList();
+                renderAll();
                 const container = document.getElementById('editEntriesList');
                 container.innerHTML = '';
                 for (let i = 0; i < e2.length; i++) {
@@ -2289,6 +2288,7 @@
     }
 
     renderAll();
+    musicListPromise = loadMusicList();
 
     const themeToggle = document.getElementById('themeToggle');
     const savedTheme = localStorage.getItem('theme');

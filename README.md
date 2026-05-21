@@ -42,9 +42,7 @@ images/
 ## 部署
 
 GitHub Pages：推送到仓库 → Settings → Pages → 选 main 分支 → Save
-<<<<<<< HEAD
-=======
 
 ## 在线链接
+
 https://jensen950820.github.io/chenjia/
->>>>>>> 45fd58b4b5c6f5eb372e42fb8b370dd59f46a483

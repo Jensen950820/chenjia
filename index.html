@@ -2365,86 +2365,32 @@
     }
 
     let musicPlaying = false;
-    let audioCtx = null, ambientNodes = [], ambientTimer = null;
 
     function stopAllAudio() {
         musicPlaying = false;
         musicBtn.classList.remove('playing');
         musicBtn.title = '背景音乐 · 点击播放';
-        if (MUSIC_URLS.length > 0) { bgMusic.pause(); }
-        stopAmbient();
-    }
-
-    function stopAmbient() {
-        clearTimeout(ambientTimer);
-        ambientNodes.forEach(n => { try { n.osc.stop(); } catch(e) {} });
-        ambientNodes = [];
-    }
-
-    function playAmbientChord() {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        audioCtx.resume();
-        stopAmbient();
-        const pentaG = [196, 220, 247, 294, 330, 392, 440, 494, 587, 659, 784, 880, 988, 1175];
-        const idx = Math.floor(Math.random() * (pentaG.length - 4));
-        const root = pentaG[idx];
-        const notes = [root];
-        if (Math.random() < 0.6) { notes.push(pentaG[idx + 2] || pentaG[idx + 1]); }
-        if (Math.random() < 0.4) { notes.push(pentaG[idx + 4] || pentaG[idx + 3]); }
-        const dur = 8 + Math.random() * 6;
-        const now = audioCtx.currentTime;
-
-        notes.forEach((freq, i) => {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            const filter = audioCtx.createBiquadFilter();
-            osc.type = 'triangle';
-            osc.frequency.value = freq;
-            osc.detune.value = (Math.random() - 0.5) * 8;
-            filter.type = 'lowpass';
-            filter.frequency.value = 800 + Math.random() * 600;
-            filter.Q.value = 1.5;
-            gain.gain.setValueAtTime(0, now);
-            osc.connect(filter);
-            filter.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start(now + i * 0.25);
-            gain.gain.linearRampToValueAtTime(0.13, now + 1.2 + i * 0.15);
-            gain.gain.setValueAtTime(0.13, now + dur * 0.6);
-            gain.gain.linearRampToValueAtTime(0.001, now + dur);
-            ambientNodes.push({ osc, gain, filter });
-        });
-        ambientTimer = setTimeout(playAmbientChord, dur * 1000 + 1500);
+        bgMusic.pause();
     }
 
     function startMusic() {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        audioCtx.resume().then(() => {
-            if (MUSIC_URLS.length > 0) {
-                const url = MUSIC_URLS[Math.floor(Math.random() * MUSIC_URLS.length)];
-                bgMusic.src = url;
-                bgMusic.volume = 0.3;
-                bgMusic.play().then(() => {
-                    musicPlaying = true;
-                    musicBtn.classList.add('playing');
-                    musicBtn.title = '背景音乐 · 播放中 · 点击暂停';
-                }).catch(() => showToast('⚠️ 播放失败', 2000));
-            } else {
-                playAmbientChord();
-                musicPlaying = true;
-                musicBtn.classList.add('playing');
-                musicBtn.title = '钢琴音 · 播放中 · 点击暂停';
-            }
-        });
+        if (MUSIC_URLS.length === 0) { showToast('🎵 music 文件夹暂无歌曲', 2000); return; }
+        bgMusic.src = MUSIC_URLS[Math.floor(Math.random() * MUSIC_URLS.length)];
+        bgMusic.volume = 0.3;
+        bgMusic.play().then(() => {
+            musicPlaying = true;
+            musicBtn.classList.add('playing');
+            musicBtn.title = '背景音乐 · 播放中 · 点击暂停';
+        }).catch(() => showToast('⚠️ 播放失败', 2000));
     }
 
-    if (MUSIC_URLS.length > 0) {
-        bgMusic.addEventListener('ended', () => {
-            if (!musicPlaying) return;
+    bgMusic.addEventListener('ended', () => {
+        if (!musicPlaying) return;
+        if (MUSIC_URLS.length > 0) {
             bgMusic.src = MUSIC_URLS[Math.floor(Math.random() * MUSIC_URLS.length)];
             bgMusic.play();
-        });
-    }
+        }
+    });
 
     musicBtn.addEventListener('click', () => {
         if (musicPlaying) { stopAllAudio(); return; }

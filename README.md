@@ -39,9 +39,9 @@ images/
 - 内置钢琴背景音
 - 数据编辑/导入/导出
 
-## 在线链接
-https://jensen950820.github.io/chenjia/
-
 ## 部署
 
 GitHub Pages：推送到仓库 → Settings → Pages → 选 main 分支 → Save
+
+## 在线链接
+https://jensen950820.github.io/chenjia/

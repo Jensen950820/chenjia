@@ -2237,7 +2237,8 @@
                 saveDataToStorage(e2, r2, a2);
                 rawEntries = e2; remarks = r2; albumUrls = a2;
     renderAll();
-    autoLoadAssets();
+    autoMatchAlbums();
+    loadMusicFromGitHub();
                 const container = document.getElementById('editEntriesList');
                 container.innerHTML = '';
                 for (let i = 0; i < e2.length; i++) {
@@ -2323,21 +2324,24 @@
     let MUSIC_URLS = [];
     const GITHUB_REPO = 'Jensen950820/chenji';
 
-    async function autoLoadAssets() {
+    function loadMusicFromGitHub() {
+        if (!GITHUB_REPO) return;
         const headers = { 'Accept': 'application/vnd.github+json' };
-        try {
-            const mr = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/music/`, { headers });
-            const md = await mr.json();
-            if (Array.isArray(md)) {
-                const urls = md.filter(f => f.name.endsWith('.mp3')).map(f => f.download_url);
-                if (urls.length > 0) MUSIC_URLS = urls;
-            }
-        } catch(e) {}
+        fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/music/`, { headers })
+            .then(r => r.json())
+            .then(data => {
+                if (Array.isArray(data)) {
+                    const urls = data.filter(f => f.name.endsWith('.mp3')).map(f => f.download_url);
+                    if (urls.length > 0) MUSIC_URLS = urls;
+                }
+            }).catch(() => {});
+    }
 
+    function autoMatchAlbums() {
         let changed = false;
         rawEntries.forEach((entry, idx) => {
             const dateStr = entry.substring(0, 8);
-            if (/^\d{8}$/.test(dateStr) && !albumUrls[idx]) {
+            if (/^\d{8}$/.test(dateStr) && !albumUrls[idx].startsWith('/images/')) {
                 albumUrls[idx] = `/images/${dateStr}/`;
                 changed = true;
             }

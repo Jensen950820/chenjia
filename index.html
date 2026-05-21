@@ -1662,13 +1662,6 @@
     while (remarks.length < rawEntries.length) remarks.push("");
     while (albumUrls.length < rawEntries.length) albumUrls.push("");
 
-    rawEntries.forEach((entry, idx) => {
-        const dateStr = entry.substring(0, 8);
-        if (/^\d{8}$/.test(dateStr) && !albumUrls[idx].startsWith('/images/')) {
-            albumUrls[idx] = `/chenjia/images/${dateStr}/`;
-        }
-    });
-
     function parseDateFromString(dateStr) {
         const year = parseInt(dateStr.substring(0, 4), 10);
         const month = parseInt(dateStr.substring(4, 6), 10) - 1;
@@ -1813,31 +1806,9 @@
     let lightboxCurrentIndex = 0;
     let lightboxMeetings = [];
     let weatherDataMap = {};
-    let albumPhotosMap = {};
 
-    const PHOTO_CACHE_KEY = 'chenjia-photo-cache';
     const MUSIC_CACHE_KEY = 'chenjia-music-cache';
     const GITHUB_REPO = 'Jensen950820/chenjia';
-
-    function loadAlbumPhotos() {
-        const cached = localStorage.getItem(PHOTO_CACHE_KEY);
-        if (cached) {
-            try { albumPhotosMap = JSON.parse(cached); } catch(e) {}
-        }
-        rawEntries.forEach((entry) => {
-            const dateStr = entry.substring(0, 8);
-            if (!/^\d{8}$/.test(dateStr) || albumPhotosMap[dateStr]) return;
-            const headers = { 'Accept': 'application/vnd.github+json' };
-            fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/images/${dateStr}/`, { headers, signal: AbortSignal.timeout(8000) })
-                .then(r => r.json())
-                .then(data => {
-                    if (Array.isArray(data)) {
-                        albumPhotosMap[dateStr] = data.filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f.name)).map(f => f.download_url);
-                        localStorage.setItem(PHOTO_CACHE_KEY, JSON.stringify(albumPhotosMap));
-                    }
-                }).catch(() => {});
-        });
-    }
 
     function openLightbox(index) {
         lightboxCurrentIndex = index;
@@ -1885,15 +1856,8 @@
         }
 
         let albumBtnHtml;
-        const photos = albumPhotosMap[meeting.rawDate] || [];
-        let photosHtml = '';
-        if (photos.length > 0) {
-            photosHtml = '<div class="lightbox-photos">' +
-                photos.map(p => `<img src="${p}" loading="lazy" onclick="window.open('${p}','_blank')" title="点击查看大图">`).join('') +
-                '</div>';
-            albumBtnHtml = `<span class="lightbox-album-btn pending">📷 共 ${photos.length} 张</span>`;
-        } else if (meeting.albumUrl && meeting.albumUrl.trim() !== "") {
-            albumBtnHtml = `<span class="lightbox-album-btn pending">📸 照片加载中...</span>`;
+        if (meeting.albumUrl && meeting.albumUrl.trim() !== "") {
+            albumBtnHtml = `<a href="${meeting.albumUrl}" target="_blank" rel="noopener" class="lightbox-album-btn">📷 查看相册</a>`;
         } else {
             albumBtnHtml = `<span class="lightbox-album-btn pending">📸 相册待补充</span>`;
         }
@@ -1909,7 +1873,6 @@
             <div class="lightbox-weekday">${meeting.weekday} · 📍 ${meeting.city}</div>
             ${weatherHtml}
             <div class="lightbox-locations">${locationTags}</div>
-            ${photosHtml}
             <div class="lightbox-remark">💬 ${remarkText}</div>
             ${albumBtnHtml}
             <button class="lightbox-share-btn" id="lightboxShareBtn">📤 生成纪念卡</button>
@@ -2302,7 +2265,6 @@
                 saveDataToStorage(e2, r2, a2);
                 rawEntries = e2; remarks = r2; albumUrls = a2;
     renderAll();
-    loadAlbumPhotos();
     loadMusicList();
                 const container = document.getElementById('editEntriesList');
                 container.innerHTML = '';

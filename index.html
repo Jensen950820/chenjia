@@ -1594,6 +1594,7 @@
 <button class="music-toggle" id="musicToggle" title="背景音乐 · 点击播放" aria-label="背景音乐"><span class="music-icon">🎵</span></button>
 <script>
     const STORAGE_KEY = 'chenjia-meeting-data';
+    const GOOGLE_SHEET_CSV = '';  // 填入 Google Sheet 发布链接，例: https://docs.google.com/spreadsheets/d/e/.../pub?output=csv
 
     const defaultData = {
         entries: [
@@ -1619,14 +1620,14 @@
             "🎓 过尽愁人处，烟花是锦城"
         ],
         albumUrls: [
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
+            "https://maiimg.com/gallery/HIBE",
+            "https://maiimg.com/gallery/HIBF",
+            "https://maiimg.com/gallery/HIBG",
+            "https://maiimg.com/gallery/HIBH",
+            "https://maiimg.com/gallery/HIBI",
+            "https://maiimg.com/gallery/HICJ",
+            "https://maiimg.com/gallery/HICA",
+            "https://maiimg.com/gallery/HICB",
             ""
         ]
     };
@@ -1652,6 +1653,32 @@
 
     function saveDataToStorage(entries, remarks, albumUrls) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({ entries, remarks, albumUrls }));
+    }
+
+    async function loadFromGoogleSheet() {
+        if (!GOOGLE_SHEET_CSV) return;
+        try {
+            const resp = await fetch(GOOGLE_SHEET_CSV);
+            const text = await resp.text();
+            const rows = text.trim().split('\n').slice(1);
+            if (rows.length === 0) return;
+            const newEntries = [], newRemarks = [], newAlbumUrls = [];
+            rows.forEach(row => {
+                const cols = row.split(',');
+                if (cols.length < 3) return;
+                const d = cols[0].trim(), c = cols[1].trim(), l = cols[2].trim().replace(/"/g, '');
+                const r = (cols[3] || '').trim().replace(/"/g, '');
+                const u = (cols[4] || '').trim().replace(/"/g, '');
+                newEntries.push(`${d} ${c}-${l}`);
+                newRemarks.push(r);
+                newAlbumUrls.push(u);
+            });
+            if (newEntries.length > 0) {
+                rawEntries = newEntries; remarks = newRemarks; albumUrls = newAlbumUrls;
+                saveDataToStorage(rawEntries, remarks, albumUrls);
+                renderAll();
+            }
+        } catch(e) {}
     }
 
     let currentData = loadData();
@@ -2265,6 +2292,7 @@
                 saveDataToStorage(e2, r2, a2);
                 rawEntries = e2; remarks = r2; albumUrls = a2;
     renderAll();
+    loadFromGoogleSheet();
     loadMusicList();
                 const container = document.getElementById('editEntriesList');
                 container.innerHTML = '';

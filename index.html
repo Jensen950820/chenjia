@@ -2326,9 +2326,13 @@
 
     const musicBtn = document.getElementById('musicToggle');
     const bgMusic = document.getElementById('bgMusic');
+    const GITHUB_REPO = 'Jensen950820/chenjia';
 
-    let MUSIC_URLS = [];
-    const GITHUB_REPO = 'Jensen950820/chenji';
+    let MUSIC_URLS = [
+        "/chenjia/music/paulyudin-soft-hopeful-piano-164828.mp3",
+        "/chenjia/music/the_mountain-soft-romance-252474.mp3",
+        "/chenjia/music/the_mountain-soft-touch-147912.mp3"
+    ];
 
     function loadMusicFromGitHub() {
         if (!GITHUB_REPO) return;

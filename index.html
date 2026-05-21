@@ -2236,7 +2236,8 @@
                 while (a2.length < e2.length) a2.push('');
                 saveDataToStorage(e2, r2, a2);
                 rawEntries = e2; remarks = r2; albumUrls = a2;
-                renderAll();
+    renderAll();
+    autoLoadAssets();
                 const container = document.getElementById('editEntriesList');
                 container.innerHTML = '';
                 for (let i = 0; i < e2.length; i++) {
@@ -2319,7 +2320,36 @@
     const musicBtn = document.getElementById('musicToggle');
     const bgMusic = document.getElementById('bgMusic');
 
-    const MUSIC_URLS = [];  // 例: ["/music/piano.mp3", "/music/warm.mp3"]
+    let MUSIC_URLS = [];
+    const GITHUB_REPO = 'Jensen950820/chenji';
+
+    async function autoLoadAssets() {
+        if (!GITHUB_REPO) return;
+        try {
+            const musicResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/music/`);
+            const musicData = await musicResp.json();
+            if (Array.isArray(musicData)) {
+                const urls = musicData.filter(f => f.name.endsWith('.mp3')).map(f => f.download_url);
+                if (urls.length > 0) MUSIC_URLS = urls;
+            }
+        } catch(e) {}
+
+        try {
+            const imgResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/images/`);
+            const imgData = await imgResp.json();
+            if (Array.isArray(imgData)) {
+                let changed = false;
+                imgData.filter(d => d.type === 'dir').forEach(dir => {
+                    const idx = rawEntries.findIndex(e => e.startsWith(dir.name));
+                    if (idx !== -1 && !albumUrls[idx]) {
+                        albumUrls[idx] = `/images/${dir.name}/`;
+                        changed = true;
+                    }
+                });
+                if (changed) { saveDataToStorage(rawEntries, remarks, albumUrls); renderAll(); }
+            }
+        } catch(e) {}
+    }
     let musicPlaying = false;
     let audioCtx = null, ambientNodes = [], ambientTimer = null;
 

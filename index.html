@@ -872,15 +872,6 @@
             .timeline-bar-container {
                 padding: 0 0.8rem;
             }
-            .timeline-dot {
-                width: 28px;
-                height: 28px;
-            }
-            .timeline-dot:hover,
-            .timeline-dot.active {
-                width: 34px;
-                height: 34px;
-            }
             .lightbox-content {
                 padding: 2rem 1.5rem 1.5rem;
             }
@@ -888,8 +879,8 @@
                 font-size: 1.6rem;
             }
             .lightbox-nav {
-                width: 44px;
-                height: 44px;
+                width: 40px;
+                height: 40px;
                 font-size: 1.8rem;
             }
             .lightbox-prev { left: 8px; }
@@ -910,6 +901,8 @@
             .theme-toggle  { bottom: calc(82px + env(safe-area-inset-bottom, 0px)); }
             .edit-toggle   { bottom: calc(136px + env(safe-area-inset-bottom, 0px)); }
             .music-toggle  { bottom: calc(28px + env(safe-area-inset-bottom, 0px)); }
+            .timeline-dot  { width: 28px; height: 28px; }
+            .timeline-dot:hover, .timeline-dot.active { width: 34px; height: 34px; }
         }
 
         @keyframes fadeSlide {
@@ -1826,9 +1819,552 @@
     let lightboxCurrentIndex = 0;
     let lightboxMeetings = [];
     let weatherDataMap = {};
-    let MUSIC_URLS = [];
+
+    const MUSIC_CACHE_KEY = 'chenjia-music-cache';
+    const GITHUB_REPO = 'Jensen950820/chenjia';
     let musicListReady = false;
     let musicListPromise = Promise.resolve();
+
+    function openLightbox(index) {
+        lightboxCurrentIndex = index;
+        document.body.classList.add('lightbox-open');
+        document.getElementById('lightbox').classList.add('show');
+        updateLightboxContent();
+    }
+
+    function closeLightbox() {
+        document.body.classList.remove('lightbox-open');
+        document.getElementById('lightbox').classList.remove('show');
+    }
+
+    function navigateLightbox(direction) {
+        const newIndex = lightboxCurrentIndex + direction;
+        if (newIndex < 0 || newIndex >= lightboxMeetings.length) return;
+        lightboxCurrentIndex = newIndex;
+        updateLightboxContent();
+    }
+
+    function updateLightboxContent() {
+        const meeting = lightboxMeetings[lightboxCurrentIndex];
+        const total = lightboxMeetings.length;
+        const order = lightboxCurrentIndex + 1;
+
+        const locationTags = meeting.locations.map(loc => {
+            let displayLoc = loc;
+            if (meeting.isGraduation && loc.includes("交通")) displayLoc += ' 🎓';
+            return `<span class="tag">🗺️ ${displayLoc}</span>`;
+        }).join('');
+
+        const remarkText = meeting.remark || '✨ 可填写专属回忆 ✨';
+
+        const formatYMD = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        const dateKey = formatYMD(meeting.date);
+        const wData = weatherDataMap[dateKey];
+        const season = getSeasonInfo(meeting.date);
+        let weatherHtml = '';
+        if (wData) {
+            const wInfo = mapWeatherCode(wData.code);
+            const wxText = wInfo ? wInfo.text : '';
+            weatherHtml = `<div class="lightbox-weather">${wInfo ? wInfo.emoji : ''} ${wxText} ${wData.temp}°C</div>`;
+        } else {
+            weatherHtml = `<div class="lightbox-weather">${season.emoji} ${season.text}季</div>`;
+        }
+
+        let albumBtnHtml;
+        if (meeting.albumUrl && meeting.albumUrl.trim() !== "") {
+            albumBtnHtml = `<a href="${meeting.albumUrl}" target="_blank" rel="noopener" class="lightbox-album-btn">📷 查看相册</a>`;
+        } else {
+            albumBtnHtml = `<span class="lightbox-album-btn pending">📸 相册待补充</span>`;
+        }
+
+        const content = document.getElementById('lightboxContent');
+        content.style.animation = 'none';
+        content.offsetHeight;
+        content.style.animation = 'slideIn 0.35s cubic-bezier(0.2, 0, 0, 1)';
+
+        content.innerHTML = `
+            <div class="lightbox-counter">第 ${order} 次相遇 / 共 ${total} 次</div>
+            <div class="lightbox-date">${meeting.displayDate}</div>
+            <div class="lightbox-weekday">${meeting.weekday} · 📍 ${meeting.city}</div>
+            ${weatherHtml}
+            <div class="lightbox-locations">${locationTags}</div>
+            <div class="lightbox-remark">💬 ${remarkText}</div>
+            ${albumBtnHtml}
+            <button class="lightbox-share-btn" id="lightboxShareBtn">📤 生成纪念卡</button>
+        `;
+
+        const prevBtn = document.getElementById('lightboxPrev');
+        const nextBtn = document.getElementById('lightboxNext');
+        prevBtn.style.visibility = lightboxCurrentIndex === 0 ? 'hidden' : 'visible';
+        nextBtn.style.visibility = lightboxCurrentIndex === total - 1 ? 'hidden' : 'visible';
+
+        const shareBtn = document.getElementById('lightboxShareBtn');
+        if (shareBtn) shareBtn.addEventListener('click', () => generateShareImage(meeting));
+    }
+
+    async function generateShareImage(meeting) {
+        showToast('🎨 正在生成纪念卡...', 2000);
+        const season = getSeasonInfo(meeting.date);
+        const formatYMD = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        const wData = weatherDataMap[formatYMD(meeting.date)];
+        let weatherLine = `${season.emoji} ${season.text}季`;
+        if (wData) {
+            const wInfo = mapWeatherCode(wData.code);
+            weatherLine = `${wInfo ? wInfo.emoji : ''} ${wInfo ? wInfo.text : ''} ${wData.temp}°C`;
+        }
+
+        const locationText = meeting.locations.join(' · ');
+        const gradIcon = meeting.isGraduation ? ' 🎓✨' : '';
+        const remarkText = meeting.remark || '每一次相遇都是光';
+        const posterIcon = meeting.isGraduation ? '🎓' : '📸';
+
+        const wrap = document.getElementById('sharePosterWrap');
+        wrap.innerHTML = `
+            <div class="share-poster">
+                <div class="share-poster-icon">${posterIcon}</div>
+                <div class="share-poster-title">晨佳 · 纪念${gradIcon}</div>
+                <div class="share-poster-number">第 ${lightboxCurrentIndex + 1} 次相遇</div>
+                <div class="share-poster-date">${meeting.displayDate}</div>
+                <div class="share-poster-meta">${meeting.weekday} · ${meeting.city}</div>
+                <div class="share-poster-weather">${weatherLine}</div>
+                <div class="share-poster-location">📍 ${locationText}</div>
+                <div class="share-poster-remark">"${remarkText}"</div>
+                <div class="share-poster-footer">📷 晨佳 · 和你的每一次相逢</div>
+            </div>
+        `;
+
+        await new Promise(r => setTimeout(r, 100));
+        try {
+            const posterEl = wrap.querySelector('.share-poster');
+            const canvas = await html2canvas(posterEl, { scale: 2, backgroundColor: null, useCORS: true });
+            canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `晨佳_纪念_${meeting.rawDate}.png`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast('✅ 纪念卡已下载', 2000);
+            }, 'image/png');
+        } catch (e) {
+            showToast('⚠️ 生成失败，请重试', 2000);
+        }
+        wrap.innerHTML = '';
+    }
+
+    function renderTimelineBar(meetings) {
+        const container = document.getElementById('timelineBarContainer');
+        if (meetings.length < 2) { container.innerHTML = ''; return; }
+
+        const firstDate = meetings[0].date;
+        const lastDate = meetings[meetings.length - 1].date;
+        const totalSpan = daysBetween(firstDate, lastDate);
+        if (totalSpan === 0) { container.innerHTML = ''; return; }
+
+        let dotsHtml = '';
+        meetings.forEach((m, idx) => {
+            const daysFromStart = daysBetween(firstDate, m.date);
+            const percent = (daysFromStart / totalSpan) * 100;
+            const gradClass = m.isGraduation ? ' graduation-dot' : '';
+            dotsHtml += `
+                <div class="timeline-dot${gradClass}" style="left:${percent}%;" data-order="#${idx+1}" data-index="${idx}" title="${m.displayDate}"></div>
+                <div class="timeline-label" style="left:${percent}%;">${m.displayDate}</div>
+            `;
+        });
+
+        container.innerHTML = `
+            <div class="timeline-bar-wrapper">
+                <div class="timeline-bar-line"></div>
+                ${dotsHtml}
+            </div>
+        `;
+
+        container.querySelectorAll('.timeline-dot').forEach(dot => {
+            dot.addEventListener('click', function() {
+                const idx = parseInt(this.getAttribute('data-index'));
+                const cards = document.querySelectorAll('.meeting-card');
+                if (cards[idx]) {
+                    cards[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    container.querySelectorAll('.timeline-dot').forEach(d => d.classList.remove('active'));
+                    this.classList.add('active');
+                    setTimeout(() => this.classList.remove('active'), 1500);
+                }
+            });
+        });
+    }
+
+    function getSeasonInfo(dateObj) {
+        const month = dateObj.getMonth() + 1;
+        if (month >= 3 && month <= 5) return { emoji: '🌸', text: '春', cls: 'season-spring' };
+        if (month >= 6 && month <= 8) return { emoji: '☀️', text: '夏', cls: 'season-summer' };
+        if (month >= 9 && month <= 11) return { emoji: '🍂', text: '秋', cls: 'season-autumn' };
+        return { emoji: '❄️', text: '冬', cls: 'season-winter' };
+    }
+
+    function mapWeatherCode(code) {
+        const map = {
+            0:  { emoji: '☀️', text: '晴' },
+            1:  { emoji: '🌤️', text: '少云' },
+            2:  { emoji: '⛅', text: '多云' },
+            3:  { emoji: '☁️', text: '阴' },
+            45: { emoji: '🌫️', text: '雾' },
+            48: { emoji: '🌫️', text: '雾凇' },
+            51: { emoji: '🌦️', text: '毛毛雨' },
+            53: { emoji: '🌦️', text: '毛毛雨' },
+            55: { emoji: '🌦️', text: '毛毛雨' },
+            61: { emoji: '🌧️', text: '小雨' },
+            63: { emoji: '🌧️', text: '中雨' },
+            65: { emoji: '🌧️', text: '大雨' },
+            71: { emoji: '❄️', text: '小雪' },
+            73: { emoji: '❄️', text: '中雪' },
+            75: { emoji: '❄️', text: '大雪' },
+            80: { emoji: '🌦️', text: '阵雨' },
+            81: { emoji: '🌦️', text: '阵雨' },
+            82: { emoji: '🌧️', text: '大阵雨' },
+            85: { emoji: '🌨️', text: '阵雪' },
+            86: { emoji: '🌨️', text: '阵雪' },
+            95: { emoji: '⛈️', text: '雷暴' },
+            96: { emoji: '⛈️', text: '雷暴冰雹' },
+            99: { emoji: '⛈️', text: '强雷暴' }
+        };
+        return map[code] || null;
+    }
+
+    async function fetchWeatherData(meetings) {
+        if (meetings.length === 0) return;
+        const firstDate = meetings[0].date;
+        const lastDate = meetings[meetings.length - 1].date;
+        const formatYMD = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+        try {
+            const url = `https://archive-api.open-meteo.com/v1/archive?latitude=31.23&longitude=121.47&start_date=${formatYMD(firstDate)}&end_date=${formatYMD(lastDate)}&daily=weather_code,temperature_2m_max,precipitation_sum&timezone=Asia/Shanghai`;
+            const resp = await fetch(url);
+            if (!resp.ok) return;
+            const data = await resp.json();
+            if (!data.daily || !data.daily.time) return;
+
+            const weatherByDate = {};
+            data.daily.time.forEach((t, i) => {
+                weatherByDate[t] = {
+                    code: data.daily.weather_code[i],
+                    temp: Math.round(data.daily.temperature_2m_max[i]),
+                    rain: data.daily.precipitation_sum[i]
+                };
+            });
+
+            weatherDataMap = weatherByDate;
+
+            meetings.forEach(meeting => {
+                const dateKey = formatYMD(meeting.date);
+                const w = weatherByDate[dateKey];
+                const seasonEl = document.getElementById('season-' + meeting.id);
+                if (!seasonEl) return;
+                if (!w) {
+                    seasonEl.textContent = meeting.seasonText;
+                    return;
+                }
+                const wInfo = mapWeatherCode(w.code);
+                if (wInfo) {
+                    seasonEl.textContent = `${meeting.seasonEmoji} ${wInfo.text} ${w.temp}°C`;
+                    seasonEl.title = `${wInfo.text} · ${w.temp}°C`;
+                } else {
+                    seasonEl.textContent = `${meeting.seasonEmoji} ${w.temp}°C`;
+                }
+            });
+        } catch (e) {
+        }
+    }
+
+    function renderTimeline(meetings, intervals, anniversaries) {
+        const container = document.getElementById('timelineList');
+        container.innerHTML = '';
+
+        const anniversaryIds = new Set(anniversaries.map(a => a.id));
+
+        meetings.forEach((meeting, idx) => {
+            const order = idx + 1;
+            const interval = intervals[idx];
+            let gapHtml = '';
+            if (interval === null) gapHtml = `<div class="gap-badge gap-first">✨ 初次相遇</div>`;
+            else gapHtml = `<div class="gap-badge">📅 相隔 ${interval} 天</div>`;
+
+            const season = getSeasonInfo(meeting.date);
+            meeting.seasonEmoji = season.emoji;
+            meeting.seasonText = season.emoji + ' ' + season.text;
+            const seasonBadge = `<span class="season-tag ${season.cls}" id="season-${meeting.id}">${meeting.seasonText}</span>`;
+
+            let locationTags = `<div class="tag city-tag">📍 ${meeting.city}</div>`;
+            meeting.locations.forEach(loc => {
+                let displayLoc = loc;
+                if (meeting.isGraduation && loc.includes("交通")) {
+                    displayLoc = loc + ' 🎓✨';
+                }
+                locationTags += `<div class="tag">🗺️ ${displayLoc}</div>`;
+            });
+
+            let gradBadge = '';
+            if (meeting.isGraduation) {
+                gradBadge = `<div class="celebration-emoji">🎓✨ 毕业快乐 ✨🎓</div>`;
+            }
+
+            let anniversaryBadge = '';
+            if (anniversaryIds.has(meeting.id)) {
+                anniversaryBadge = `<span class="anniversary-badge">💝 周年纪念</span>`;
+            }
+
+            const remarkText = meeting.remark ? meeting.remark : '✨ 可填写专属回忆 ✨';
+
+            const card = document.createElement('div');
+            card.className = 'meeting-card';
+            if (anniversaryIds.has(meeting.id)) {
+                card.classList.add('today-anniversary');
+            }
+            card.id = 'meeting-' + idx;
+
+            card.addEventListener('click', () => {
+                openLightbox(idx);
+            });
+
+            card.innerHTML = `
+                <div class="card-inner">
+                    <div class="card-order">
+                        <div class="order-badge">#${order}</div>
+                    </div>
+                    <div class="card-content">
+                        <div class="date-row">
+                            <span class="full-date">${meeting.displayDate}</span>
+                            <span class="weekday">${meeting.weekday}</span>
+                            ${seasonBadge}
+                            ${anniversaryBadge}
+                        </div>
+                        <div class="location-tags">
+                            ${locationTags}
+                        </div>
+                        <div class="interval-detail">
+                            <div style="display: flex; gap: 0.8rem; flex-wrap: wrap; align-items: center;">
+                                ${gapHtml}
+                                ${gradBadge}
+                            </div>
+                            <div class="remark-area">💬 ${remarkText}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    function renderAll() {
+        const meetings = buildMeetingsData(rawEntries, albumUrls, remarks);
+        const intervals = computeIntervals(meetings);
+        lightboxMeetings = meetings;
+        renderStats(meetings, intervals);
+        const anniversaries = checkAnniversary(meetings);
+        renderTimeline(meetings, intervals, anniversaries);
+        renderTimelineBar(meetings);
+        fetchWeatherData(meetings);
+    }
+
+    function openEditor() {
+        const container = document.getElementById('editEntriesList');
+        container.innerHTML = '';
+        for (let i = 0; i < rawEntries.length; i++) {
+            const entry = rawEntries[i];
+            const spaceIdx = entry.indexOf(' ');
+            const dateStr = spaceIdx !== -1 ? entry.substring(0, spaceIdx) : '';
+            const rest = spaceIdx !== -1 ? entry.substring(spaceIdx + 1) : entry;
+            const extracted = extractLocations(rest);
+            const city = extracted.city;
+            const locs = extracted.locations.join('，');
+            const remark = i < remarks.length ? remarks[i] : '';
+            const albumUrl = i < albumUrls.length ? albumUrls[i] : '';
+            container.appendChild(createEntryCard(i, dateStr, city, locs, remark, albumUrl, true));
+        }
+        document.getElementById('editModal').classList.add('show');
+    }
+
+    function createEntryCard(index, dateStr, city, locs, remark, albumUrl, collapsed) {
+        const card = document.createElement('div');
+        card.className = 'edit-entry-card' + (collapsed ? ' collapsed' : '');
+        const summaryText = dateStr ? `${dateStr} · ${city} · ${locs || city}` : '新相遇（待填写）';
+        card.innerHTML = `
+            <div class="edit-entry-header">
+                <span class="edit-entry-index">#${index + 1}</span>
+                <span class="edit-entry-summary">${summaryText}</span>
+                <span class="edit-entry-toggle">▼</span>
+                <button class="edit-entry-delete" title="删除此行">&times;</button>
+            </div>
+            <div class="edit-entry-body">
+            <div class="edit-entry-row">
+                <div class="edit-field"><label>日期 YYYYMMDD</label><input type="text" value="${dateStr}" data-field="date" placeholder="20211226"></div>
+                <div class="edit-field"><label>城市</label><input type="text" value="${city}" data-field="city" placeholder="上海"></div>
+            </div>
+            <div class="edit-entry-row">
+                <div class="edit-field edit-field-wide"><label>地点（多个用逗号分隔）</label><input type="text" value="${locs}" data-field="locs" placeholder="上生新所、中山公园"></div>
+            </div>
+            <div class="edit-entry-row">
+                <div class="edit-field edit-field-wide"><label>个性留言</label><input type="text" value="${remark}" data-field="remark" placeholder="✨ ..."></div>
+            </div>
+            <div class="edit-entry-row">
+                <div class="edit-field edit-field-wide"><label>相册链接（可留空）</label><input type="text" value="${albumUrl}" data-field="url" placeholder="https://..."></div>
+            </div>
+            </div>
+        `;
+        card.querySelector('.edit-entry-header').addEventListener('click', function(e) {
+            if (e.target.closest('.edit-entry-delete')) return;
+            card.classList.toggle('collapsed');
+        });
+        card.querySelector('.edit-entry-delete').addEventListener('click', () => {
+            card.remove();
+            reindexEditorCards();
+        });
+        return card;
+    }
+
+    function reindexEditorCards() {
+        const cards = document.querySelectorAll('#editEntriesList .edit-entry-card');
+        cards.forEach((card, i) => card.querySelector('.edit-entry-index').textContent = '#' + (i + 1));
+    }
+
+    function addEmptyEntry() {
+        const container = document.getElementById('editEntriesList');
+        container.appendChild(createEntryCard(container.children.length, '', '上海', '', '', '', false));
+        container.lastChild.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function closeEditor() {
+        document.getElementById('editModal').classList.remove('show');
+    }
+
+    function applyAndSave() {
+        const cards = document.querySelectorAll('#editEntriesList .edit-entry-card');
+        const newEntries = [], newRemarks = [], newAlbumUrls = [];
+        let valid = true;
+        cards.forEach(card => {
+            const date = card.querySelector('[data-field="date"]').value.trim();
+            const city = card.querySelector('[data-field="city"]').value.trim() || '上海';
+            const locs = card.querySelector('[data-field="locs"]').value.trim();
+            const remark = card.querySelector('[data-field="remark"]').value.trim();
+            const url = card.querySelector('[data-field="url"]').value.trim();
+            if (!date || !/^\d{8}$/.test(date)) { valid = false; return; }
+            const locPart = locs || city;
+            newEntries.push(`${date} ${city}-${locPart}`);
+            newRemarks.push(remark);
+            newAlbumUrls.push(url);
+        });
+        if (!valid || newEntries.length === 0) { showToast('⚠️ 请填写正确的8位日期格式', 2500); return; }
+        saveDataToStorage(newEntries, newRemarks, newAlbumUrls);
+        rawEntries = newEntries; remarks = newRemarks; albumUrls = newAlbumUrls;
+    renderAll();
+    musicListPromise = loadMusicList();
+        closeEditor();
+        showToast('✅ 数据已保存并生效', 2000);
+    }
+
+    function exportData() {
+        const blob = new Blob([JSON.stringify({ entries: rawEntries, remarks, albumUrls }, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = '晨佳相册_备份.json';
+        a.click(); URL.revokeObjectURL(url);
+        showToast('📥 备份文件已下载', 2000);
+    }
+
+    function importData(file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (!data.entries || !Array.isArray(data.entries)) { showToast('⚠️ 文件格式不正确', 2500); return; }
+                let e2 = data.entries, r2 = data.remarks || [], a2 = data.albumUrls || [];
+                while (r2.length < e2.length) r2.push('');
+                while (a2.length < e2.length) a2.push('');
+                saveDataToStorage(e2, r2, a2);
+                rawEntries = e2; remarks = r2; albumUrls = a2;
+    renderAll();
+    loadMusicList();
+                const container = document.getElementById('editEntriesList');
+                container.innerHTML = '';
+                for (let i = 0; i < e2.length; i++) {
+                    const entry = e2[i];
+                    const spaceIdx = entry.indexOf(' ');
+                    const dateStr = spaceIdx !== -1 ? entry.substring(0, spaceIdx) : '';
+                    const rest = spaceIdx !== -1 ? entry.substring(spaceIdx + 1) : entry;
+                    const extracted = extractLocations(rest);
+                    const locs = extracted.locations.join('，');
+                    container.appendChild(createEntryCard(i, dateStr, extracted.city, locs, i < r2.length ? r2[i] : '', i < a2.length ? a2[i] : '', true));
+                }
+                showToast('✅ 数据已导入并生效', 2000);
+            } catch (ex) { showToast('⚠️ JSON 解析失败，请检查文件', 2500); }
+        };
+        reader.readAsText(file);
+    }
+
+    function resetData() {
+        if (confirm('确定恢复为默认数据吗？当前修改将丢失。')) { localStorage.removeItem(STORAGE_KEY); location.reload(); }
+    }
+
+    renderAll();
+
+    const themeToggle = document.getElementById('themeToggle');
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+        document.body.classList.add('dark');
+        themeToggle.textContent = '☀️';
+    }
+    themeToggle.addEventListener('click', () => {
+        document.body.classList.toggle('dark');
+        const isDark = document.body.classList.contains('dark');
+        themeToggle.textContent = isDark ? '☀️' : '🌙';
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    });
+
+    document.getElementById('editToggle').addEventListener('click', openEditor);
+    document.getElementById('editAddEntry').addEventListener('click', addEmptyEntry);
+    document.getElementById('editClose').addEventListener('click', closeEditor);
+    document.getElementById('editModal').addEventListener('click', function(e) { if (e.target === this) closeEditor(); });
+    document.getElementById('editSave').addEventListener('click', applyAndSave);
+    document.getElementById('editExport').addEventListener('click', exportData);
+    document.getElementById('editImport').addEventListener('click', () => document.getElementById('editFileInput').click());
+    document.getElementById('editFileInput').addEventListener('change', function(e) { if (this.files[0]) importData(this.files[0]); this.value = ''; });
+    document.getElementById('editReset').addEventListener('click', resetData);
+
+    document.addEventListener('keydown', function(e) {
+        const editModal = document.getElementById('editModal');
+        if (editModal.classList.contains('show') && e.key === 'Escape') closeEditor();
+    });
+
+    document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
+    document.getElementById('lightboxPrev').addEventListener('click', () => navigateLightbox(-1));
+    document.getElementById('lightboxNext').addEventListener('click', () => navigateLightbox(1));
+
+    document.getElementById('lightbox').addEventListener('click', function(e) {
+        if (e.target === this) closeLightbox();
+    });
+
+    document.addEventListener('keydown', function(e) {
+        const lightbox = document.getElementById('lightbox');
+        if (!lightbox.classList.contains('show')) return;
+        if (e.key === 'Escape') closeLightbox();
+        if (e.key === 'ArrowLeft') navigateLightbox(-1);
+        if (e.key === 'ArrowRight') navigateLightbox(1);
+    });
+
+    let touchStartX = 0;
+    document.getElementById('lightbox').addEventListener('touchstart', function(e) {
+        touchStartX = e.touches[0].clientX;
+    }, { passive: true });
+
+    document.getElementById('lightbox').addEventListener('touchend', function(e) {
+        const diff = e.changedTouches[0].clientX - touchStartX;
+        if (Math.abs(diff) > 60) {
+            navigateLightbox(diff > 0 ? -1 : 1);
+        }
+    });
+
+    const musicBtn = document.getElementById('musicToggle');
+    const bgMusic = document.getElementById('bgMusic');
+
+    let MUSIC_URLS = [];
 
     function loadMusicList() {
         const cached = localStorage.getItem(MUSIC_CACHE_KEY);
@@ -1876,63 +2412,6 @@
     musicBtn.addEventListener('click', () => {
         if (musicPlaying) { stopAllAudio(); return; }
         startMusic();
-    });
-
-    renderAll();
-    musicListPromise = loadMusicList();
-
-    const themeToggle = document.getElementById('themeToggle');
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
-        document.body.classList.add('dark');
-        themeToggle.textContent = '☀️';
-    }
-    themeToggle.addEventListener('click', () => {
-        document.body.classList.toggle('dark');
-        const isDark = document.body.classList.contains('dark');
-        themeToggle.textContent = isDark ? '☀️' : '🌙';
-        localStorage.setItem('theme', isDark ? 'dark' : 'light');
-    });
-
-    document.getElementById('editToggle').addEventListener('click', openEditor);
-    document.getElementById('editAddEntry').addEventListener('click', addEmptyEntry);
-    document.getElementById('editClose').addEventListener('click', closeEditor);
-    document.getElementById('editModal').addEventListener('click', function(e) { if (e.target === this) closeEditor(); });
-    document.getElementById('editSave').addEventListener('click', applyAndSave);
-    document.getElementById('editExport').addEventListener('click', exportData);
-    document.getElementById('editImport').addEventListener('click', () => document.getElementById('editFileInput').click());
-    document.getElementById('editFileInput').addEventListener('change', function(e) { if (this.files[0]) importData(this.files[0]); this.value = ''; });
-    document.getElementById('editReset').addEventListener('click', resetData);
-
-    document.addEventListener('keydown', function(e) {
-        const em = document.getElementById('editModal');
-        if (em.classList.contains('show') && e.key === 'Escape') closeEditor();
-    });
-
-    document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
-    document.getElementById('lightboxPrev').addEventListener('click', () => navigateLightbox(-1));
-    document.getElementById('lightboxNext').addEventListener('click', () => navigateLightbox(1));
-
-    document.getElementById('lightbox').addEventListener('click', function(e) {
-        if (e.target === this) closeLightbox();
-    });
-
-    document.addEventListener('keydown', function(e) {
-        const lb = document.getElementById('lightbox');
-        if (!lb.classList.contains('show')) return;
-        if (e.key === 'Escape') closeLightbox();
-        if (e.key === 'ArrowLeft') navigateLightbox(-1);
-        if (e.key === 'ArrowRight') navigateLightbox(1);
-    });
-
-    let touchStartX = 0;
-    document.getElementById('lightbox').addEventListener('touchstart', function(e) {
-        touchStartX = e.touches[0].clientX;
-    }, { passive: true });
-
-    document.getElementById('lightbox').addEventListener('touchend', function(e) {
-        const diff = e.changedTouches[0].clientX - touchStartX;
-        if (Math.abs(diff) > 60) navigateLightbox(diff > 0 ? -1 : 1);
     });
 </script>
 </body>

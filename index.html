@@ -1807,6 +1807,9 @@
     let lightboxMeetings = [];
     let weatherDataMap = {};
 
+    const MUSIC_CACHE_KEY = 'chenjia-music-cache';
+    const GITHUB_REPO = 'Jensen950820/chenjia';
+
     function openLightbox(index) {
         lightboxCurrentIndex = index;
         document.body.classList.add('lightbox-open');
@@ -2261,7 +2264,8 @@
                 while (a2.length < e2.length) a2.push('');
                 saveDataToStorage(e2, r2, a2);
                 rawEntries = e2; remarks = r2; albumUrls = a2;
-                renderAll();
+    renderAll();
+    loadMusicList();
                 const container = document.getElementById('editEntriesList');
                 container.innerHTML = '';
                 for (let i = 0; i < e2.length; i++) {
@@ -2344,7 +2348,21 @@
     const musicBtn = document.getElementById('musicToggle');
     const bgMusic = document.getElementById('bgMusic');
 
-    let MUSIC_URLS = [];  // 填入 MP3 路径，例: "/music/song.mp3"
+    let MUSIC_URLS = [];
+
+    function loadMusicList() {
+        const cached = localStorage.getItem(MUSIC_CACHE_KEY);
+        if (cached) { try { MUSIC_URLS = JSON.parse(cached); } catch(e) {} }
+        const headers = { 'Accept': 'application/vnd.github+json' };
+        fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/music/`, { headers, signal: AbortSignal.timeout(8000) })
+            .then(r => r.json())
+            .then(data => {
+                if (Array.isArray(data)) {
+                    const urls = data.filter(f => f.name.endsWith('.mp3')).map(f => f.download_url);
+                    if (urls.length > 0) { MUSIC_URLS = urls; localStorage.setItem(MUSIC_CACHE_KEY, JSON.stringify(urls)); }
+                }
+            }).catch(() => {});
+    }
 
     let musicPlaying = false;
     let audioCtx = null, ambientNodes = [], ambientTimer = null;

@@ -1637,6 +1637,13 @@
     while (remarks.length < rawEntries.length) remarks.push("");
     while (albumUrls.length < rawEntries.length) albumUrls.push("");
 
+    rawEntries.forEach((entry, idx) => {
+        const dateStr = entry.substring(0, 8);
+        if (/^\d{8}$/.test(dateStr) && !albumUrls[idx].startsWith('/images/')) {
+            albumUrls[idx] = `/chenjia/images/${dateStr}/`;
+        }
+    });
+
     function parseDateFromString(dateStr) {
         const year = parseInt(dateStr.substring(0, 4), 10);
         const month = parseInt(dateStr.substring(4, 6), 10) - 1;
@@ -2237,7 +2244,6 @@
                 saveDataToStorage(e2, r2, a2);
                 rawEntries = e2; remarks = r2; albumUrls = a2;
     renderAll();
-    autoMatchAlbums();
     loadMusicFromGitHub();
                 const container = document.getElementById('editEntriesList');
                 container.innerHTML = '';
@@ -2337,17 +2343,6 @@
             }).catch(() => {});
     }
 
-    function autoMatchAlbums() {
-        let changed = false;
-        rawEntries.forEach((entry, idx) => {
-            const dateStr = entry.substring(0, 8);
-            if (/^\d{8}$/.test(dateStr) && !albumUrls[idx].startsWith('/images/')) {
-                albumUrls[idx] = `/images/${dateStr}/`;
-                changed = true;
-            }
-        });
-        if (changed) { saveDataToStorage(rawEntries, remarks, albumUrls); renderAll(); }
-    }
     let musicPlaying = false;
     let audioCtx = null, ambientNodes = [], ambientTimer = null;
 

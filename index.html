@@ -2240,7 +2240,8 @@
         if (!valid || newEntries.length === 0) { showToast('⚠️ 请填写正确的8位日期格式', 2500); return; }
         saveDataToStorage(newEntries, newRemarks, newAlbumUrls);
         rawEntries = newEntries; remarks = newRemarks; albumUrls = newAlbumUrls;
-        renderAll();
+    renderAll();
+    musicListPromise = loadMusicList();
         closeEditor();
         showToast('✅ 数据已保存并生效', 2000);
     }
@@ -2348,20 +2349,22 @@
     const musicBtn = document.getElementById('musicToggle');
     const bgMusic = document.getElementById('bgMusic');
 
+    let musicListReady = false;
+    let musicListPromise = Promise.resolve();
     let MUSIC_URLS = [];
 
     function loadMusicList() {
         const cached = localStorage.getItem(MUSIC_CACHE_KEY);
         if (cached) { try { MUSIC_URLS = JSON.parse(cached); } catch(e) {} }
         const headers = { 'Accept': 'application/vnd.github+json' };
-        fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/music/`, { headers, signal: AbortSignal.timeout(8000) })
+        return fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/music/`, { headers, signal: AbortSignal.timeout(8000) })
             .then(r => r.json())
             .then(data => {
                 if (Array.isArray(data)) {
                     const urls = data.filter(f => f.name.endsWith('.mp3')).map(f => f.download_url);
                     if (urls.length > 0) { MUSIC_URLS = urls; localStorage.setItem(MUSIC_CACHE_KEY, JSON.stringify(urls)); }
                 }
-            }).catch(() => {});
+            }).catch(() => {}).finally(() => { musicListReady = true; });
     }
 
     let musicPlaying = false;
@@ -2373,7 +2376,8 @@
         bgMusic.pause();
     }
 
-    function startMusic() {
+    async function startMusic() {
+        if (!musicListReady) { showToast('🎵 正在读取音乐列表...', 1500); musicListPromise.then(() => startMusic()); return; }
         if (MUSIC_URLS.length === 0) { showToast('🎵 music 文件夹暂无歌曲', 2000); return; }
         bgMusic.src = MUSIC_URLS[Math.floor(Math.random() * MUSIC_URLS.length)];
         bgMusic.volume = 0.3;

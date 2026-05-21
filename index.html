@@ -2325,22 +2325,23 @@
 
     async function autoLoadAssets() {
         if (!GITHUB_REPO) return;
+        const headers = { 'Accept': 'application/vnd.github+json' };
         try {
-            const musicResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/music/`);
-            const musicData = await musicResp.json();
-            if (Array.isArray(musicData)) {
-                const urls = musicData.filter(f => f.name.endsWith('.mp3')).map(f => f.download_url);
+            const mr = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/music/`, { headers });
+            const md = await mr.json();
+            if (Array.isArray(md)) {
+                const urls = md.filter(f => f.name.endsWith('.mp3')).map(f => f.download_url);
                 if (urls.length > 0) MUSIC_URLS = urls;
             }
         } catch(e) {}
 
         try {
-            const imgResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/images/`);
-            const imgData = await imgResp.json();
-            if (Array.isArray(imgData)) {
+            const ir = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/images/`, { headers });
+            const id = await ir.json();
+            if (Array.isArray(id)) {
                 let changed = false;
-                imgData.filter(d => d.type === 'dir').forEach(dir => {
-                    const idx = rawEntries.findIndex(e => e.startsWith(dir.name));
+                id.filter(d => d.type === 'dir').forEach(dir => {
+                    const idx = rawEntries.findIndex(e => e.substring(0, 8) === dir.name);
                     if (idx !== -1) {
                         albumUrls[idx] = `/images/${dir.name}/`;
                         changed = true;

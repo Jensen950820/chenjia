@@ -1691,7 +1691,8 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ entries: rawEntries, remarks, albumUrls })
             });
-        } catch(e) {}
+            showToast('✅ 已同步到 Google Sheet', 2000);
+        } catch(e) { showToast('⚠️ Sheet 同步失败，请检查 App Script', 2500); }
     }
 
     let currentData = loadData();

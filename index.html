@@ -1594,7 +1594,8 @@
 <button class="music-toggle" id="musicToggle" title="背景音乐 · 点击播放" aria-label="背景音乐"><span class="music-icon">🎵</span></button>
 <script>
     const STORAGE_KEY = 'chenjia-meeting-data';
-    const GOOGLE_SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vStOrvxTL6KYkTbKEOpOKvnD8R2BafnaWV0xXlPPf3gfDFrqlkU4uXbuZLqyjIGA5Fj8MG8CZcI5P-A/pub?output=csv';
+    const JSONBIN_API_KEY = '';   // jsonbin.io → Account → API Keys
+    const JSONBIN_BIN_ID = '';    // 创建 Bin 后的 Bin ID
 
     const defaultData = {
         entries: [
@@ -1655,30 +1656,34 @@
         localStorage.setItem(STORAGE_KEY, JSON.stringify({ entries, remarks, albumUrls }));
     }
 
-    async function loadFromGoogleSheet() {
-        if (!GOOGLE_SHEET_CSV) return;
+    async function loadFromJSONBin() {
+        if (!JSONBIN_API_KEY || !JSONBIN_BIN_ID) return;
         try {
-            const url = GOOGLE_SHEET_CSV.includes('?') ? GOOGLE_SHEET_CSV + '&_t=' + Date.now() : GOOGLE_SHEET_CSV + '?_t=' + Date.now();
-            const resp = await fetch(url, { cache: 'no-store' });
-            const text = await resp.text();
-            const rows = text.trim().split('\n').slice(1);
-            if (rows.length === 0) return;
-            const newEntries = [], newRemarks = [], newAlbumUrls = [];
-            rows.forEach(row => {
-                const cols = row.split(',');
-                if (cols.length < 3) return;
-                const d = cols[0].trim(), c = cols[1].trim(), l = cols[2].trim().replace(/"/g, '');
-                const r = (cols[3] || '').trim().replace(/"/g, '');
-                const u = (cols[4] || '').trim().replace(/"/g, '');
-                newEntries.push(`${d} ${c}-${l}`);
-                newRemarks.push(r);
-                newAlbumUrls.push(u);
+            const resp = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+                headers: { 'X-Master-Key': JSONBIN_API_KEY }
             });
-            if (newEntries.length > 0) {
-                rawEntries = newEntries; remarks = newRemarks; albumUrls = newAlbumUrls;
+            const json = await resp.json();
+            const data = json.record;
+            if (data && Array.isArray(data.entries)) {
+                rawEntries = data.entries;
+                remarks = data.remarks || [];
+                albumUrls = data.albumUrls || [];
+                while (remarks.length < rawEntries.length) remarks.push('');
+                while (albumUrls.length < rawEntries.length) albumUrls.push('');
                 saveDataToStorage(rawEntries, remarks, albumUrls);
                 renderAll();
             }
+        } catch(e) {}
+    }
+
+    async function pushToJSONBin() {
+        if (!JSONBIN_API_KEY || !JSONBIN_BIN_ID) return;
+        try {
+            await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
+                method: 'PUT',
+                headers: { 'X-Master-Key': JSONBIN_API_KEY, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entries: rawEntries, remarks, albumUrls })
+            });
         } catch(e) {}
     }
 
@@ -2268,6 +2273,7 @@
         if (!valid || newEntries.length === 0) { showToast('⚠️ 请填写正确的8位日期格式', 2500); return; }
         saveDataToStorage(newEntries, newRemarks, newAlbumUrls);
         rawEntries = newEntries; remarks = newRemarks; albumUrls = newAlbumUrls;
+        pushToJSONBin();
         renderAll();
         closeEditor();
         showToast('✅ 数据已保存并生效', 2000);
@@ -2293,7 +2299,7 @@
                 saveDataToStorage(e2, r2, a2);
                 rawEntries = e2; remarks = r2; albumUrls = a2;
     renderAll();
-    loadFromGoogleSheet();
+    loadFromJSONBin();
     loadMusicList();
                 const container = document.getElementById('editEntriesList');
                 container.innerHTML = '';

@@ -1816,6 +1816,8 @@
     let albumPhotosMap = {};
 
     const PHOTO_CACHE_KEY = 'chenjia-photo-cache';
+    const MUSIC_CACHE_KEY = 'chenjia-music-cache';
+    const GITHUB_REPO = 'Jensen950820/chenjia';
 
     function loadAlbumPhotos() {
         const cached = localStorage.getItem(PHOTO_CACHE_KEY);
@@ -1826,7 +1828,7 @@
             const dateStr = entry.substring(0, 8);
             if (!/^\d{8}$/.test(dateStr) || albumPhotosMap[dateStr]) return;
             const headers = { 'Accept': 'application/vnd.github+json' };
-            fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/images/${dateStr}/`, { headers })
+            fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/images/${dateStr}/`, { headers, signal: AbortSignal.timeout(8000) })
                 .then(r => r.json())
                 .then(data => {
                     if (Array.isArray(data)) {
@@ -2301,7 +2303,7 @@
                 rawEntries = e2; remarks = r2; albumUrls = a2;
     renderAll();
     loadAlbumPhotos();
-    loadMusicFromGitHub();
+    loadMusicList();
                 const container = document.getElementById('editEntriesList');
                 container.innerHTML = '';
                 for (let i = 0; i < e2.length; i++) {
@@ -2383,25 +2385,34 @@
 
     const musicBtn = document.getElementById('musicToggle');
     const bgMusic = document.getElementById('bgMusic');
-    const GITHUB_REPO = 'Jensen950820/chenjia';
 
-    let MUSIC_URLS = [
-        "/chenjia/music/paulyudin-soft-hopeful-piano-164828.mp3",
-        "/chenjia/music/the_mountain-soft-romance-252474.mp3",
-        "/chenjia/music/the_mountain-soft-touch-147912.mp3"
-    ];
+    let MUSIC_URLS = [];
 
-    function loadMusicFromGitHub() {
-        if (!GITHUB_REPO) return;
+    function loadMusicList() {
+        const cached = localStorage.getItem(MUSIC_CACHE_KEY);
+        if (cached) {
+            try { MUSIC_URLS = JSON.parse(cached); } catch(e) {}
+        }
         const headers = { 'Accept': 'application/vnd.github+json' };
-        fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/music/`, { headers })
+        fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/music/`, { headers, signal: AbortSignal.timeout(8000) })
             .then(r => r.json())
             .then(data => {
                 if (Array.isArray(data)) {
                     const urls = data.filter(f => f.name.endsWith('.mp3')).map(f => f.download_url);
-                    if (urls.length > 0) MUSIC_URLS = urls;
+                    if (urls.length > 0) {
+                        MUSIC_URLS = urls;
+                        localStorage.setItem(MUSIC_CACHE_KEY, JSON.stringify(urls));
+                    }
                 }
             }).catch(() => {});
+
+        if (MUSIC_URLS.length === 0) {
+            MUSIC_URLS = [
+                "/chenjia/music/paulyudin-soft-hopeful-piano-164828.mp3",
+                "/chenjia/music/the_mountain-soft-romance-252474.mp3",
+                "/chenjia/music/the_mountain-soft-touch-147912.mp3"
+            ];
+        }
     }
 
     let musicPlaying = false;

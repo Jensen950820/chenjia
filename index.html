@@ -2324,7 +2324,6 @@
     const GITHUB_REPO = 'Jensen950820/chenji';
 
     async function autoLoadAssets() {
-        if (!GITHUB_REPO) return;
         const headers = { 'Accept': 'application/vnd.github+json' };
         try {
             const mr = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/music/`, { headers });
@@ -2335,21 +2334,15 @@
             }
         } catch(e) {}
 
-        try {
-            const ir = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/images/`, { headers });
-            const id = await ir.json();
-            if (Array.isArray(id)) {
-                let changed = false;
-                id.filter(d => d.type === 'dir').forEach(dir => {
-                    const idx = rawEntries.findIndex(e => e.substring(0, 8) === dir.name);
-                    if (idx !== -1) {
-                        albumUrls[idx] = `/images/${dir.name}/`;
-                        changed = true;
-                    }
-                });
-                if (changed) { saveDataToStorage(rawEntries, remarks, albumUrls); renderAll(); }
+        let changed = false;
+        rawEntries.forEach((entry, idx) => {
+            const dateStr = entry.substring(0, 8);
+            if (/^\d{8}$/.test(dateStr) && !albumUrls[idx]) {
+                albumUrls[idx] = `/images/${dateStr}/`;
+                changed = true;
             }
-        } catch(e) {}
+        });
+        if (changed) { saveDataToStorage(rawEntries, remarks, albumUrls); renderAll(); }
     }
     let musicPlaying = false;
     let audioCtx = null, ambientNodes = [], ambientTimer = null;
